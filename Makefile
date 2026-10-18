@@ -1,6 +1,16 @@
 include .env
 export
 
+postgres-cleanup:
+	@read -p "Are you sure you want to remove all containers and volumes? (y/n): " answer; \
+	if [ "$$answer" = "y" ]; then \
+		docker compose down -v; \
+		echo "All containers and volumes removed."; \
+	else \
+		echo "Operation canceled."; \
+	fi
+
+
 # Postgres commands
 postgres-up:
 	@docker compose up -d postgres
@@ -8,20 +18,27 @@ postgres-up:
 postgres-stop:
 	@docker compose stop postgres
 
-postgres-cleanup:
-	@read -p "Are you sure you want to remove the database? (y/n): " answer; \
-	if [ "$$answer" = "y" ]; then \
-		docker compose down -v; \
-		echo "Database removed."; \
-	else \
-		echo "Operation canceled."; \
-	fi
 
-port-forward:
-	@docker compose up -d port-forwarder
+postgres-port-forward:
+	@docker compose up -d postgres-port-forwarder
 
-port-forward-down:
-	@docker compose down port-forwarder
+postgres-port-forward-down:
+	@docker compose down postgres-port-forwarder
+
+
+# Redis commands
+redis-up:
+	@docker compose up -d redis
+
+redis-stop:
+	@docker compose stop redis
+
+redis-port-forward:
+	@docker compose up -d redis-port-forwarder
+
+redis-port-forward-down:
+	@docker compose down redis-port-forwarder
+
 
 # migrations commands
 service ?= auth
