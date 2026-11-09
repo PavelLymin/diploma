@@ -1,98 +1,99 @@
 package domain
 
 import (
-	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/PavelLymin/diploma/pkg/phone"
 	"github.com/google/uuid"
 )
 
-var (
-	ErrEmptyChallengeID    = errors.New("otp challenge id must not be empty")
-	ErrInvalidPhone        = errors.New("invalid phone number")
-	ErrEmptyCodeHash       = errors.New("code hash cannot be empty")
-	ErrChallengeExpired    = errors.New("otp challenge is expired")
-	ErrAlreadyConsumed     = errors.New("otp challenge already consumed")
-	ErrMaxAttemptsExceeded = errors.New("max attempts exceeded")
-)
-
 type OTPChallenge struct {
-	ID         uuid.UUID
-	Phone      string
-	CodeHash   []byte
-	ExpiresAt  time.Time
-	Attempts   int
-	ConsumedAt *time.Time
-	CreatedAt  time.Time
+	ID                uuid.UUID  // Уникальный ID challenge
+	Phone             string     // Нормализованный номер телефона
+	CodeHash          string     // HMAC-хеш OTP
+	Attempts          int        // Число неправильных попыток
+	CreatedAt         time.Time  // Время создания
+	ExpiresAt         time.Time  // Время истечения
+	ResendAvailableAt time.Time  // Когда разрешена повторная отправка
+	BlockedUntil      *time.Time // Когда заканчивается блокировка
 }
 
-func NewOTPChallenge(number string, codeHash []byte, ttl time.Duration) (*OTPChallenge, error) {
+func NewOTPChallenge(
+	number,
+	codeHash string,
+	ttl,
+	resendCooldown time.Duration,
+	now time.Time,
+) (*OTPChallenge, error) {
+	if strings.TrimSpace(codeHash) == "" {
+		return nil, fmt.Errorf("code hash: %w", ErrInvalidChallenge)
+	}
+	if ttl <= 0 || resendCooldown < 0 || resendCooldown >= ttl {
+		return nil, fmt.Errorf("invalid challenge TTL or resend cooldown: %w", ErrInvalidChallenge)
+	}
 	normalizedPhone, err := phone.NormalizePhone(number, "ZZ")
 	if err != nil {
-		return nil, fmt.Errorf("phone: %w", err)
+		return nil, fmt.Errorf("normalize phone: %w", err)
 	}
 
-	now := time.Now()
-	otpChallenge := &OTPChallenge{
-		ID:        uuid.New(),
-		Phone:     normalizedPhone,
-		CodeHash:  codeHash,
-		ExpiresAt: now.Add(ttl),
-		Attempts:  0,
-		CreatedAt: now,
+	now = now.UTC()
+	challenge := &OTPChallenge{
+		ID:                uuid.New(),
+		Phone:             normalizedPhone,
+		CodeHash:          codeHash,
+		Attempts:          0,
+		CreatedAt:         now,
+		ExpiresAt:         now.Add(ttl),
+		ResendAvailableAt: now.Add(resendCooldown),
 	}
 
-	if err := otpChallenge.validateOtherFields(); err != nil {
+	if err := challenge.Validate(); err != nil {
 		return nil, err
 	}
-	return otpChallenge, nil
+
+	return challenge, nil
 }
 
-func (o *OTPChallenge) Validate() error {
-	if err := phone.ValidatePhone(o.Phone, "ZZ"); err != nil {
-		return err
+func (c *OTPChallenge) Validate() error {
+	if c == nil || c.ID == uuid.Nil || strings.TrimSpace(c.CodeHash) == "" || c.Attempts < 0 {
+		return ErrInvalidChallenge
 	}
-	if err := o.validateOtherFields(); err != nil {
-		return err
+	if c.CreatedAt.IsZero() || c.ExpiresAt.IsZero() || !c.ExpiresAt.After(c.CreatedAt) {
+		return fmt.Errorf("invalid challenge timestamps: %w", ErrInvalidChallenge)
 	}
-	return nil
-}
-
-func (o *OTPChallenge) validateOtherFields() error {
-	if o.ID == uuid.Nil {
-		return ErrEmptyChallengeID
+	if c.ResendAvailableAt.IsZero() || c.ResendAvailableAt.Before(c.CreatedAt) || !c.ResendAvailableAt.Before(c.ExpiresAt) {
+		return fmt.Errorf("invalid resend timestamp: %w", ErrInvalidChallenge)
 	}
-	if len(o.CodeHash) == 0 {
-		return ErrEmptyCodeHash
+	if err := phone.ValidatePhone(c.Phone, "ZZ"); err != nil {
+		return fmt.Errorf("invalid challenge phone: %w", err)
 	}
 	return nil
 }
 
-func (o *OTPChallenge) IsExpired(now time.Time) bool {
-	return now.After(o.ExpiresAt)
+// Проверяет, истёк ли challenge
+func (c *OTPChallenge) IsExpired(now time.Time) bool {
+	return c == nil || !now.UTC().Before(c.ExpiresAt)
 }
 
-func (o *OTPChallenge) IsConsumed() bool {
-	return o.ConsumedAt != nil
+// Проверяет, разрешена ли повторная отправка, когда наступило время ResendAvailableAt
+func (c *OTPChallenge) CanResend(now time.Time) bool {
+	return c != nil &&
+		!c.IsExpired(now) &&
+		!now.UTC().Before(c.ResendAvailableAt)
 }
 
-func (o *OTPChallenge) Consume(now time.Time) error {
-	if o.IsConsumed() {
-		return ErrAlreadyConsumed
-	}
-	if o.IsExpired(now) {
-		return ErrChallengeExpired
-	}
-	o.ConsumedAt = &now
-	return nil
-}
-
+// Увеличивает число неправильных попыток
 func (o *OTPChallenge) IncrementAttempt(maxAttempts int) error {
 	if o.Attempts >= maxAttempts {
 		return ErrMaxAttemptsExceeded
 	}
 	o.Attempts++
 	return nil
+}
+
+// Проверяет, действует ли блокировка challenge
+func (c *OTPChallenge) IsBlocked(now time.Time) bool {
+	return c != nil && c.BlockedUntil != nil && now.UTC().Before(*c.BlockedUntil)
 }

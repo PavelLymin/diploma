@@ -1,4 +1,4 @@
-package http
+package httperrors
 
 import (
 	"errors"
@@ -13,10 +13,10 @@ type Details struct {
 }
 
 type ErrorResponse struct {
-	Code      string   `json:"code"`
-	Message   string   `json:"message"`
-	Details   *Details `json:"details,omitempty"`
-	RequestID string   `json:"request_id,omitempty"`
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id,omitempty"`
+	Details   any    `json:"details,omitempty"`
 }
 
 func MapError(err error) (int, ErrorResponse) {
@@ -43,6 +43,11 @@ func MapError(err error) (int, ErrorResponse) {
 		status = http.StatusInternalServerError
 		response.Code = "internal_server_error"
 		response.Message = "internal server error"
+
+	case errors.Is(err, apperrors.ErrTooManyRequests):
+		status = http.StatusTooManyRequests
+		response.Code = "too_many_requests"
+		response.Message = "too many requests"
 
 	default:
 		status = http.StatusInternalServerError
