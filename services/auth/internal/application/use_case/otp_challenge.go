@@ -18,6 +18,13 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	ErrRepositoryRequired = errors.New("OTP repository is required")
+	ErrCryptoRequired     = errors.New("OTP crypto is required")
+	ErrDeliveryRequired   = errors.New("OTP delivery adapter is required")
+	ErrInvalidConfig      = errors.New("invalid OTP configuration")
+)
+
 type UseCase struct {
 	repository repository.IOTPRepository // Хранение challenge
 	crypto     *security.Crypto          // Генерация OTP и HMAC
@@ -34,25 +41,32 @@ func New(
 	cfg Config,
 ) (*UseCase, error) {
 	if r == nil {
-		return nil, errors.New("OTP repository is required")
+		return nil, ErrRepositoryRequired
 	}
 	if crypt == nil {
-		return nil, errors.New("OTP crypto is required")
+		return nil, ErrCryptoRequired
 	}
 	if d == nil {
-		return nil, errors.New("OTP delivery adapter is required")
+		return nil, ErrDeliveryRequired
 	}
 	if c == nil {
 		c = systemClock{}
 	}
-	if cfg.ChallengeTTL == 0 && cfg.ResendCooldown == 0 && cfg.BlockDuration == 0 && cfg.IdempotencyTTL == 0 && cfg.MaxAttempts == 0 {
+	if cfg == (Config{}) {
 		cfg = DefaultConfig()
 	}
-	if cfg.ChallengeTTL <= 0 || cfg.ResendCooldown < 0 || cfg.BlockDuration <= 0 || cfg.IdempotencyTTL <= 0 || cfg.MaxAttempts < 1 {
-		return nil, errors.New("invalid OTP configuration")
+	if cfg.ChallengeTTL <= 0 ||
+		cfg.ResendCooldown < 0 ||
+		cfg.BlockDuration <= 0 ||
+		cfg.IdempotencyTTL <= 0 ||
+		cfg.MaxAttempts < 1 {
+		return nil, ErrInvalidConfig
 	}
 	if cfg.ResendCooldown >= cfg.ChallengeTTL {
-		return nil, errors.New("resend cooldown must be shorter than challenge TTL")
+		return nil, fmt.Errorf(
+			"%w: resend cooldown must be shorter than challenge TTL",
+			ErrInvalidConfig,
+		)
 	}
 	return &UseCase{
 		repository: r,

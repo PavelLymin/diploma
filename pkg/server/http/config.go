@@ -12,7 +12,7 @@ type Config struct {
 	ReadTimeout     time.Duration `env:"HTTP_READ_TIMEOUT" envDefault:"5s"`
 	WriteTimeout    time.Duration `env:"HTTP_WRITE_TIMEOUT" envDefault:"10s"`
 	ShutdownTimeout time.Duration `env:"HTTP_SHUTDOWN_TIMEOUT" envDefault:"15s"`
-	MaxHeaderBytes  int           `env:"HTTP_MAX_HEADER_BYTES" envDefault:"1<<20"`
+	MaxHeaderBytes  int           `env:"HTTP_MAX_HEADER_BYTES" envDefault:"1048576"`
 }
 
 func NewConfig() (Config, error) {

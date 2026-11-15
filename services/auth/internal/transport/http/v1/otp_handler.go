@@ -15,9 +15,9 @@ type OTPHandler struct {
 	OTPUseCase usecase.UseCase
 }
 
-func New(OTPUseCase usecase.UseCase) *OTPHandler {
+func New(OTPUseCase *usecase.UseCase) *OTPHandler {
 	return &OTPHandler{
-		OTPUseCase: OTPUseCase,
+		OTPUseCase: *OTPUseCase,
 	}
 }
 

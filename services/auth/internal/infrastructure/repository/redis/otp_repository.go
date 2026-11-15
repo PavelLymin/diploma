@@ -1,4 +1,4 @@
-package redis
+package redisotp
 
 import (
 	"context"
@@ -18,14 +18,14 @@ type RedisRepository struct {
 	client *redis.Client
 }
 
-func New(client *redis.Client) *RedisRepository {
+func New(client *redis.Client) (*RedisRepository, error) {
 	if client == nil {
-		panic("redis client is required")
+		return nil, errors.New("redis client is required")
 	}
 
 	return &RedisRepository{
 		client: client,
-	}
+	}, nil
 }
 
 type challengeRecord struct {

@@ -6,7 +6,7 @@ import (
 
 type CreateChallengeRequest struct {
 	RequestID           uuid.UUID `json:"request_id" binding:"required"`
-	Phone               string    `json:"phone" binding:"required,phone"`
+	Phone               string    `json:"phone" binding:"required"`
 	PersonalDataConsent bool      `json:"personal_data_consent" binding:"required"`
 }
 

@@ -1,0 +1,17 @@
+package middleware
+
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+)
+
+func RequestID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestID := c.GetHeader("X-Request-ID")
+		if _, err := uuid.Parse(requestID); err != nil {
+			requestID = uuid.NewString()
+		}
+		c.Header("X-Request-ID", requestID)
+		c.Next()
+	}
+}

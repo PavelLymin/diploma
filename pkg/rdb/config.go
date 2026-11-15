@@ -8,14 +8,14 @@ import (
 )
 
 type Config struct {
-	Addr         string        `env:"REDIS_ADDR" required:"true"`
-	Password     string        `env:"REDIS_PASSWORD" default:""`
-	DB           int           `env:"REDIS_DB" default:"0"`
-	PoolSize     int           `env:"REDIS_POOL_SIZE" default:"100"`
-	MinIdleConns int           `env:"REDIS_MIN_IDLE_CONNS" default:"10"`
-	DialTimeout  time.Duration `env:"REDIS_DIAL_TIMEOUT" default:"5s"`
-	ReadTimeout  time.Duration `env:"REDIS_READ_TIMEOUT" default:"3s"`
-	WriteTimeout time.Duration `env:"REDIS_WRITE_TIMEOUT" default:"3s"`
+	Addr         string        `env:"REDIS_ADDR,required,notEmpty"`
+	Password     string        `env:"REDIS_PASSWORD" envDefault:""`
+	DB           int           `env:"REDIS_DB" envDefault:"0"`
+	PoolSize     int           `env:"REDIS_POOL_SIZE" envDefault:"100"`
+	MinIdleConns int           `env:"REDIS_MIN_IDLE_CONNS" envDefault:"10"`
+	DialTimeout  time.Duration `env:"REDIS_DIAL_TIMEOUT" envDefault:"5s"`
+	ReadTimeout  time.Duration `env:"REDIS_READ_TIMEOUT" envDefault:"3s"`
+	WriteTimeout time.Duration `env:"REDIS_WRITE_TIMEOUT" envDefault:"3s"`
 }
 
 func NewConfig() (Config, error) {

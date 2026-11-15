@@ -17,11 +17,15 @@ type Crypto struct {
 	otpHMACKey []byte
 }
 
-func NewCrypto(otpHMACKey []byte) (*Crypto, error) {
-	if len(otpHMACKey) < 32 {
+func NewCrypto(config Config) (*Crypto, error) {
+	key, err := hex.DecodeString(config.OTPHMACKey)
+	if err != nil {
+		return nil, fmt.Errorf("decode OTP HMAC key: %w", err)
+	}
+	if len(key) < 32 {
 		return nil, errors.New("OTP HMAC key must contain at least 32 bytes")
 	}
-	return &Crypto{otpHMACKey: append([]byte(nil), otpHMACKey...)}, nil
+	return &Crypto{otpHMACKey: key}, nil
 }
 
 func (c *Crypto) GenerateOTP() (string, error) {
