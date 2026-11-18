@@ -1,2 +1,18 @@
+# Environment files
 .env
-services/auth/.env
+.env.*
+!.env.example
+
+**/.env
+**/.env.*
+!**/.env.example
+
+# Build artifacts
+**/bin/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store

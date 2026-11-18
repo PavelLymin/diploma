@@ -1,0 +1,25 @@
+# Git
+.git
+.gitignore
+
+# Environment files (secrets)
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea
+.vscode
+
+# macOS
+.DS_Store
+
+# Go build artifacts
+**/bin/
+**/*.test
+
+# Logs
+*.log
+
+# Temporary files
+**/tmp/

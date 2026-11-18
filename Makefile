@@ -40,6 +40,12 @@ redis-port-forward-down:
 	@docker compose down redis-port-forwarder
 
 
+# Auth service commands
+# Создаем образ и запускаем контейнер
+auth-up:
+	@docker compose up -d --build auth-service
+
+
 # migrations commands
 service ?= auth
 db ?= auth_db
