@@ -12,6 +12,7 @@ import (
 	"github.com/PavelLymin/diploma/services/auth/internal/domain"
 	"github.com/PavelLymin/diploma/services/auth/internal/infrastructure/repository"
 	"github.com/PavelLymin/diploma/services/auth/internal/infrastructure/security"
+	"github.com/PavelLymin/diploma/services/auth/internal/infrastructure/sms"
 	"github.com/PavelLymin/diploma/services/auth/internal/transport/http/v1/request"
 	"github.com/PavelLymin/diploma/services/auth/internal/transport/http/v1/response"
 
@@ -28,7 +29,7 @@ var (
 type UseCase struct {
 	repository repository.IOTPRepository // Хранение challenge
 	crypto     *security.Crypto          // Генерация OTP и HMAC
-	delivery   repository.IOTPDelivery   // Передача OTP пользователю
+	delivery   sms.IOTPDelivery          // Передача OTP пользователю
 	clock      Clock                     // Получение времени
 	config     Config                    // Настройки ограничений
 }
@@ -36,7 +37,7 @@ type UseCase struct {
 func New(
 	r repository.IOTPRepository,
 	crypt *security.Crypto,
-	d repository.IOTPDelivery,
+	d sms.IOTPDelivery,
 	c Clock,
 	cfg Config,
 ) (*UseCase, error) {
@@ -51,9 +52,6 @@ func New(
 	}
 	if c == nil {
 		c = systemClock{}
-	}
-	if cfg == (Config{}) {
-		cfg = DefaultConfig()
 	}
 	if cfg.ChallengeTTL <= 0 ||
 		cfg.ResendCooldown < 0 ||
@@ -120,9 +118,9 @@ func (uc *UseCase) CreateChallenges(
 		if err := uc.delivery.SendOTP(ctx, stored.Phone, code); err != nil {
 			cleanupErr := uc.repository.DeletePending(ctx, "create", req.RequestID, stored.ID, stored.Phone)
 			if cleanupErr != nil {
-				return nil, fmt.Errorf("OTP delivery failed (%v); challenge cleanup failed: %w", err, cleanupErr)
+				return nil, fmt.Errorf("%w:%w; challenge cleanup failed: %w", domain.ErrOTPDeliveryFailed, err, cleanupErr)
 			}
-			return nil, fmt.Errorf("OTP delivery failed: %w", err)
+			return nil, fmt.Errorf("%w: %w", domain.ErrOTPDeliveryFailed, err)
 		}
 	}
 	serverTime, err := uc.repository.ServerTime(ctx)
@@ -190,7 +188,7 @@ func (uc *UseCase) ResendChallenge(
 			if cleanupErr != nil {
 				return nil, fmt.Errorf("OTP delivery failed (%v); replacement challenge cleanup failed: %w", err, cleanupErr)
 			}
-			return nil, fmt.Errorf("OTP delivery failed: %w", err)
+			return nil, fmt.Errorf("%w: %v", domain.ErrOTPDeliveryFailed, err)
 		}
 	}
 	serverTime, err := uc.repository.ServerTime(ctx)

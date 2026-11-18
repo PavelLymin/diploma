@@ -2,6 +2,8 @@ package httpserver
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -9,73 +11,90 @@ import (
 	"syscall"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/sync/errgroup"
 )
 
 type Server struct {
-	router *gin.Engine
 	server *http.Server
 	logger *slog.Logger
 	config Config
-	notify chan error
 }
 
-func New(cfg Config, handler *gin.Engine, logger *slog.Logger) *Server {
+func New(
+	cfg Config,
+	handler *gin.Engine,
+	logger *slog.Logger,
+) (*Server, error) {
+	if handler == nil {
+		return nil, errors.New("HTTP handler is required")
+	}
+
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	httpServer := &http.Server{
-		Addr:           cfg.Address,
-		Handler:        handler,
-		ReadTimeout:    cfg.ReadTimeout,
-		WriteTimeout:   cfg.WriteTimeout,
-		MaxHeaderBytes: cfg.MaxHeaderBytes,
+		Addr:              cfg.Address,
+		Handler:           handler,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		MaxHeaderBytes:    cfg.MaxHeaderBytes,
 	}
 
 	return &Server{
-		router: handler,
 		server: httpServer,
 		logger: logger,
 		config: cfg,
-		notify: make(chan error, 1),
-	}
-}
-
-func (s *Server) start() {
-	s.logger.Info("HTTP Server is starting", slog.String("address", s.server.Addr))
-
-	go func() {
-		if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			s.notify <- err
-		}
-		close(s.notify)
-	}()
+	}, nil
 }
 
 func (s *Server) Run() error {
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	mainCtx, cancel := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer cancel()
 
-	s.start()
+	s.logger.Info("HTTP Server is starting", slog.String("address", s.server.Addr))
 
-	select {
-	case err := <-s.notify:
-		return err
-
-	case sig := <-quit:
-		s.logger.Info("Shutting down HTTP server...", slog.String("signal", sig.String()))
-
-		ctx, cancel := context.WithTimeout(context.Background(), s.config.ShutdownTimeout)
-		defer cancel()
-
-		if err := s.server.Shutdown(ctx); err != nil {
-			s.logger.Error("Server forced to shutdown", slog.String("error", err.Error()))
-			_ = s.server.Close()
-			return err
+	g, gCtx := errgroup.WithContext(mainCtx)
+	g.Go(func() error {
+		err := s.server.ListenAndServe()
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
 		}
 
-		s.logger.Info("HTTP Server gracefully stopped")
+		if err != nil {
+			return fmt.Errorf("listen and serve: %w", err)
+		}
+
+		return nil
+	})
+	g.Go(func() error {
+		<-gCtx.Done()
+
+		shutdownCtx, cancel := context.WithTimeout(
+			context.Background(),
+			s.config.ShutdownTimeout,
+		)
+		defer cancel()
+
+		if err := s.server.Shutdown(shutdownCtx); err != nil {
+			_ = s.server.Close()
+
+			return fmt.Errorf("graceful shutdown: %w", err)
+		}
+
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("HTTP server failed: %w", err)
 	}
 
-	return nil
-}
+	s.logger.Info("HTTP Server gracefully stopped")
 
-func (s *Server) Shutdown(ctx context.Context) error {
-	return s.server.Shutdown(ctx)
+	return nil
 }

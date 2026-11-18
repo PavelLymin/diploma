@@ -13,6 +13,7 @@ type Config struct {
 	DB           int           `env:"REDIS_DB" envDefault:"0"`
 	PoolSize     int           `env:"REDIS_POOL_SIZE" envDefault:"100"`
 	MinIdleConns int           `env:"REDIS_MIN_IDLE_CONNS" envDefault:"10"`
+	PoolTimeout  time.Duration `env:"REDIS_POOL_TIMEOUT" envDefault:"5s"`
 	DialTimeout  time.Duration `env:"REDIS_DIAL_TIMEOUT" envDefault:"5s"`
 	ReadTimeout  time.Duration `env:"REDIS_READ_TIMEOUT" envDefault:"3s"`
 	WriteTimeout time.Duration `env:"REDIS_WRITE_TIMEOUT" envDefault:"3s"`

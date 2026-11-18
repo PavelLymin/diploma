@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"time"
 
 	"github.com/PavelLymin/diploma/pkg/rdb"
 	httpserver "github.com/PavelLymin/diploma/pkg/server/http"
@@ -12,6 +14,8 @@ import (
 	"github.com/PavelLymin/diploma/services/auth/internal/infrastructure/repository"
 	redisotp "github.com/PavelLymin/diploma/services/auth/internal/infrastructure/repository/redis"
 	"github.com/PavelLymin/diploma/services/auth/internal/infrastructure/security"
+	"github.com/PavelLymin/diploma/services/auth/internal/infrastructure/sms"
+	"github.com/PavelLymin/diploma/services/auth/internal/infrastructure/sms/exolve"
 	v1 "github.com/PavelLymin/diploma/services/auth/internal/transport/http/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -45,25 +49,23 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("initialize OTP repository: %w", err)
 	}
 
-	otpDelivery := repository.New()
+	client := &http.Client{Timeout: 10 * time.Second}
+	otpDelivery, err := initOTPDelivery(client)
+	if err != nil {
+		return nil, err
+	}
 
 	otpCrypto, err := initSecurity()
 	if err != nil {
 		return nil, err
 	}
 
-	otpUseCase, err := usecase.New(
-		otpRepository,
-		otpCrypto,
-		otpDelivery,
-		nil,
-		usecase.DefaultConfig(),
-	)
+	otpUseCase, err := initUseCase(otpRepository, otpCrypto, otpDelivery, nil)
 	if err != nil {
-		return nil, fmt.Errorf("initialize OTP use case: %w", err)
+		return nil, err
 	}
 
-	otpHandler := v1.New(otpUseCase)
+	otpHandler := v1.NewOTPHandler(otpUseCase, 10*time.Second)
 
 	httpServer, err := initServer(otpHandler, logger)
 	if err != nil {
@@ -101,11 +103,15 @@ func initServer(
 		gin.Recovery(),
 		middleware.RequestID(),
 		middleware.SecurityHeaders(),
+		middleware.Logger(logger),
 	)
 
 	v1.NewRouter(handler, otpHadler)
 
-	httpServer := httpserver.New(cfg, handler, logger)
+	httpServer, err := httpserver.New(cfg, handler, logger)
+	if err != nil {
+		return nil, fmt.Errorf("initialize HTTP server: %w", err)
+	}
 
 	return httpServer, nil
 }
@@ -136,6 +142,37 @@ func initSecurity() (*security.Crypto, error) {
 	}
 
 	return crypto, nil
+}
+
+func initUseCase(
+	r repository.IOTPRepository,
+	crypt *security.Crypto,
+	d sms.IOTPDelivery,
+	c usecase.Clock,
+) (*usecase.UseCase, error) {
+	cfg, err := usecase.NewConfig()
+	if err != nil {
+		return nil, fmt.Errorf("load use case config: %w", err)
+	}
+
+	otpUseCase, err := usecase.New(r, crypt, d, c, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initialize OTP use case: %w", err)
+	}
+
+	return otpUseCase, nil
+}
+
+func initOTPDelivery(client *http.Client) (*exolve.ExolveDelivery, error) {
+	cfg, err := exolve.NewConfig()
+	if err != nil {
+		return nil, fmt.Errorf("load otp delivery config: %w", err)
+	}
+
+	otpDelivery := exolve.New(client, cfg)
+
+	return otpDelivery, nil
+
 }
 
 func (a *App) Stop() {

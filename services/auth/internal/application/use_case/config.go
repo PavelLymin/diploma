@@ -1,21 +1,32 @@
 package usecase
 
-import "time"
+import (
+	"fmt"
+	"time"
+
+	"github.com/caarlos0/env/v11"
+)
 
 type Config struct {
-	ChallengeTTL   time.Duration
-	ResendCooldown time.Duration
-	BlockDuration  time.Duration
-	IdempotencyTTL time.Duration
-	MaxAttempts    int
+	ChallengeTTL   time.Duration `env:"OTP_CHALLENGE_TTL" envDefault:"5m"`
+	ResendCooldown time.Duration `env:"OTP_RESEND_COOLDOWN" envDefault:"60s"`
+	BlockDuration  time.Duration `env:"OTP_BLOCK_DURATION" envDefault:"15m"`
+	IdempotencyTTL time.Duration `env:"OTP_IDEMPOTENCY_TTL" envDefault:"24h"`
+	MaxAttempts    int           `env:"OTP_MAX_ATTEMPTS" envDefault:"5"`
 }
 
-func DefaultConfig() Config {
-	return Config{
-		ChallengeTTL:   5 * time.Minute,
-		ResendCooldown: 60 * time.Second,
-		BlockDuration:  15 * time.Minute,
-		IdempotencyTTL: 24 * time.Hour,
-		MaxAttempts:    5,
+func NewConfig() (Config, error) {
+	var cfg Config
+	if err := env.Parse(&cfg); err != nil {
+		return Config{}, fmt.Errorf("failed to parse delivery config: %w", err)
 	}
+	return cfg, nil
+}
+
+func NewConfigMust() Config {
+	cfg, err := NewConfig()
+	if err != nil {
+		panic(fmt.Sprintf("failed to create delivery config: %v", err))
+	}
+	return cfg
 }

@@ -9,15 +9,18 @@ import (
 
 func NewClient(ctx context.Context, cfg Config) (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:         cfg.Addr,
-		Password:     cfg.Password,
-		DB:           cfg.DB,
-		PoolSize:     cfg.PoolSize,
-		MinIdleConns: cfg.MinIdleConns,
-		DialTimeout:  cfg.DialTimeout,
-		ReadTimeout:  cfg.ReadTimeout,
-		WriteTimeout: cfg.WriteTimeout,
-	})
+		Addr:                  cfg.Addr,
+		Password:              cfg.Password,
+		DB:                    cfg.DB,
+		PoolSize:              cfg.PoolSize,
+		MinIdleConns:          cfg.MinIdleConns,
+		PoolTimeout:           cfg.PoolTimeout,
+		DialTimeout:           cfg.DialTimeout,
+		ReadTimeout:           cfg.ReadTimeout,
+		WriteTimeout:          cfg.WriteTimeout,
+		ContextTimeoutEnabled: true,
+	},
+	)
 
 	pingCtx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
 	defer cancel()

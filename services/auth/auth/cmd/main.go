@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
+	if err := godotenv.Load("services/auth/.env"); err != nil {
 		slog.Error("failed to load .env", "error", err)
 		os.Exit(1)
 	}

@@ -59,7 +59,3 @@ type IOTPRepository interface {
 
 	ServerTime(ctx context.Context) (time.Time, error)
 }
-
-type IOTPDelivery interface {
-	SendOTP(ctx context.Context, normalizedPhone, code string) error
-}

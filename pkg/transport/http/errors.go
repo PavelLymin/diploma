@@ -1,6 +1,7 @@
 package httperrors
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
@@ -24,6 +25,11 @@ func MapError(err error) (int, ErrorResponse) {
 	var response ErrorResponse
 
 	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		status = http.StatusGatewayTimeout
+		response.Code = "gateway_timeout"
+		response.Message = "request processing timeout"
+
 	case errors.Is(err, apperrors.ErrUnauthorized):
 		status = http.StatusUnauthorized
 		response.Code = "unauthorized"

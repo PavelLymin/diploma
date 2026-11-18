@@ -28,6 +28,7 @@ var (
 	ErrEmptyFamilyID          = errors.New("family id must not be empty")
 	ErrEmptyTokenHash         = errors.New("token hash cannot be empty")
 	ErrInvalidOTPFormat       = errors.New("invalid OTP format")
+	ErrOTPDeliveryFailed      = errors.New("OTP delivery failed")
 )
 
 const (

@@ -1,7 +1,9 @@
 package v1
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	usecase "github.com/PavelLymin/diploma/services/auth/internal/application/use_case"
 	autherrors "github.com/PavelLymin/diploma/services/auth/internal/transport/http"
@@ -12,12 +14,17 @@ import (
 )
 
 type OTPHandler struct {
-	OTPUseCase usecase.UseCase
+	OTPUseCase     *usecase.UseCase
+	requestTimeout time.Duration
 }
 
-func New(OTPUseCase *usecase.UseCase) *OTPHandler {
+func NewOTPHandler(
+	uc *usecase.UseCase,
+	requestTimeout time.Duration,
+) *OTPHandler {
 	return &OTPHandler{
-		OTPUseCase: *OTPUseCase,
+		OTPUseCase:     uc,
+		requestTimeout: requestTimeout,
 	}
 }
 
@@ -27,7 +34,11 @@ func (h *OTPHandler) CreateChallenge(c *gin.Context) {
 		autherrors.WriteError(c, err)
 		return
 	}
-	result, err := h.OTPUseCase.CreateChallenges(c, req)
+
+	ctx, cancel := h.requestContext(c)
+	defer cancel()
+
+	result, err := h.OTPUseCase.CreateChallenges(ctx, req)
 	if err != nil {
 		autherrors.WriteError(c, err)
 		return
@@ -41,7 +52,11 @@ func (h *OTPHandler) ResendChallenge(c *gin.Context) {
 		autherrors.WriteError(c, err)
 		return
 	}
-	result, err := h.OTPUseCase.ResendChallenge(c, req)
+
+	ctx, cancel := h.requestContext(c)
+	defer cancel()
+
+	result, err := h.OTPUseCase.ResendChallenge(ctx, req)
 	if err != nil {
 		autherrors.WriteError(c, err)
 		return
@@ -61,10 +76,17 @@ func (h *OTPHandler) VerifyAndConsume(c *gin.Context) {
 		return
 	}
 
-	result, err := h.OTPUseCase.VerifyAndConsume(c, challangeID, req)
+	ctx, cancel := h.requestContext(c)
+	defer cancel()
+
+	result, err := h.OTPUseCase.VerifyAndConsume(ctx, challangeID, req)
 	if err != nil {
 		autherrors.WriteError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *OTPHandler) requestContext(c *gin.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(c.Request.Context(), h.requestTimeout)
 }
